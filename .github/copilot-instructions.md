@@ -8,7 +8,7 @@
 ./force-platform-skills/install.sh   # Install skills to all AI tool locations
 npm run lint && npm run prettier     # Lint and format
 npm run test:unit                    # Run Jest tests (LWC)
-sf scanner run --target force-app/   # Run Salesforce Code Analyzer
+sf code-analyzer run --target force-app/   # Run Salesforce Code Analyzer
 ```
 
 ## Project Overview

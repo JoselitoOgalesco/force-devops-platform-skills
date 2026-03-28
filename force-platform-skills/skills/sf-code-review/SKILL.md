@@ -3,7 +3,7 @@ name: sf-code-review
 description: |
   Review Salesforce Apex, LWC, and metadata code for security vulnerabilities,
   governor limit violations, and best practice adherence. Uses Salesforce Code
-  Analyzer (sf scanner) with PMD rules and a structured quality rubric. Use for
+  Analyzer (sf code-analyzer) with PMD rules and a structured quality rubric. Use for
   code reviews, pull request checks, pre-deployment validation, and AppExchange
   security review preparation.
 metadata:
@@ -38,13 +38,13 @@ Review Salesforce code systematically using Salesforce Code Analyzer and a struc
 
 ```bash
 # Install the Code Analyzer plugin
-sf plugins install @salesforce/sfdx-scanner
+sf plugins install @salesforce/plugin-code-analyzer
 
 # Verify installation
-sf scanner --version
+sf code-analyzer --version
 
 # Update rules to latest
-sf scanner rule add --language apex --json
+# Rules are managed by the plugin automatically
 ```
 
 ### Available Rule Engines
@@ -66,51 +66,51 @@ sf scanner rule add --language apex --json
 
 ```bash
 # Full scan on force-app folder
-sf scanner run --target force-app/ --format table
+sf code-analyzer run --target force-app/ --format table
 
 # Scan specific file
-sf scanner run --target force-app/main/default/classes/MyClass.cls --format table
+sf code-analyzer run --target force-app/main/default/classes/MyClass.cls --format table
 
 # Scan multiple paths
-sf scanner run --target "force-app/main/default/classes/,force-app/main/default/triggers/" --format table
+sf code-analyzer run --target "force-app/main/default/classes/,force-app/main/default/triggers/" --format table
 
 # Security-focused scan
-sf scanner run --target force-app/ --category Security --format table
+sf code-analyzer run --target force-app/ --category Security --format table
 
 # PMD rules only
-sf scanner run --target force-app/ --engine pmd --format table
+sf code-analyzer run --target force-app/ --engine pmd --format table
 ```
 
 ### Output Formats
 
 ```bash
 # Table format (terminal display)
-sf scanner run --target force-app/ --format table
+sf code-analyzer run --target force-app/ --format table
 
 # CSV format (spreadsheet analysis)
-sf scanner run --target force-app/ --format csv --outfile results.csv
+sf code-analyzer run --target force-app/ --format csv --outfile results.csv
 
 # JSON format (programmatic processing)
-sf scanner run --target force-app/ --format json --outfile results.json
+sf code-analyzer run --target force-app/ --format json --outfile results.json
 
 # SARIF format (GitHub Code Scanning)
-sf scanner run --target force-app/ --format sarif --outfile results.sarif
+sf code-analyzer run --target force-app/ --format sarif --outfile results.sarif
 
 # HTML report (shareable)
-sf scanner run --target force-app/ --format html --outfile report.html
+sf code-analyzer run --target force-app/ --format html --outfile report.html
 ```
 
 ### Severity Thresholds
 
 ```bash
 # Fail if any Critical (1) or High (2) issues found
-sf scanner run --target force-app/ --severity-threshold 2
+sf code-analyzer run --target force-app/ --severity-threshold 2
 
 # Fail only on Critical issues
-sf scanner run --target force-app/ --severity-threshold 1
+sf code-analyzer run --target force-app/ --severity-threshold 1
 
 # Show violations but don't fail
-sf scanner run --target force-app/ --severity-threshold 4
+sf code-analyzer run --target force-app/ --severity-threshold 4
 ```
 
 | Severity | Level | Action |
@@ -330,7 +330,7 @@ grep -rn "System\.debug.*password\|System\.debug.*secret" force-app/main/default
 
 ## Code Analyzer Results
 
-{Paste output from sf scanner run}
+{Paste output from sf code-analyzer run}
 
 ## Quality Scores
 
@@ -396,11 +396,11 @@ jobs:
         run: npm install -g @salesforce/cli
 
       - name: Install Code Analyzer
-        run: sf plugins install @salesforce/sfdx-scanner
+        run: sf plugins install @salesforce/plugin-code-analyzer
 
       - name: Run Security Scan
         run: |
-          sf scanner run \
+          sf code-analyzer run \
             --target force-app/ \
             --category Security \
             --severity-threshold 2 \
@@ -420,7 +420,7 @@ jobs:
 # .git/hooks/pre-commit
 
 echo "Running Salesforce Code Analyzer..."
-sf scanner run --target force-app/ --severity-threshold 2
+sf code-analyzer run --target force-app/ --severity-threshold 2
 
 if [ $? -ne 0 ]; then
     echo "❌ Code Analyzer found critical issues. Fix before committing."
@@ -438,30 +438,30 @@ echo "✅ Code review passed!"
 
 ```bash
 # ❌ Just running and ignoring output
-sf scanner run --target force-app/
+sf code-analyzer run --target force-app/
 
 # ✅ Setting severity threshold to fail on issues
-sf scanner run --target force-app/ --severity-threshold 2
+sf code-analyzer run --target force-app/ --severity-threshold 2
 ```
 
 ### Mistake 2: Only Scanning Changed Files
 
 ```bash
 # ❌ Only scanning one file misses cross-file issues
-sf scanner run --target force-app/main/default/classes/OneFile.cls
+sf code-analyzer run --target force-app/main/default/classes/OneFile.cls
 
 # ✅ Scan the full folder to catch dependencies
-sf scanner run --target force-app/main/default/classes/
+sf code-analyzer run --target force-app/main/default/classes/
 ```
 
 ### Mistake 3: Skipping Security Category
 
 ```bash
 # ❌ Default scan may miss security-specific rules
-sf scanner run --target force-app/
+sf code-analyzer run --target force-app/
 
 # ✅ Explicitly include Security category
-sf scanner run --target force-app/ --category "Security,Best Practices"
+sf code-analyzer run --target force-app/ --category "Security,Best Practices"
 ```
 
 ---

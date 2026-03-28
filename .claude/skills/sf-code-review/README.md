@@ -4,11 +4,11 @@ Review Salesforce code for security, performance, and best practices.
 
 ## Description
 
-This skill provides a structured approach to code review using Salesforce Code Analyzer (`sf scanner`) with PMD rules and a 25-point quality rubric. Covers security vulnerabilities, governor limit violations, bulkification, patterns, and completeness.
+This skill provides a structured approach to code review using Salesforce Code Analyzer (`sf code-analyzer`) with PMD rules and a 25-point quality rubric. Covers security vulnerabilities, governor limit violations, bulkification, patterns, and completeness.
 
 ## Features
 
-- **Code Analyzer** — Run `sf scanner` with PMD, ESLint, and security rules
+- **Code Analyzer** — Run `sf code-analyzer` with PMD, ESLint, and security rules
 - **Quality Rubric** — Score code 0-25 across 5 categories
 - **Security Scan** — Detect CRUD/FLS violations, injection risks
 - **Governor Limits** — Find SOQL/DML in loops
@@ -17,8 +17,8 @@ This skill provides a structured approach to code review using Salesforce Code A
 
 ## Quick Start
 
-1. Install Code Analyzer: `sf plugins install @salesforce/sfdx-scanner`
-2. Run scan: `sf scanner run --target force-app/ --format table`
+1. Install Code Analyzer: `sf plugins install @salesforce/plugin-code-analyzer`
+2. Run scan: `sf code-analyzer run --target force-app/ --format table`
 3. Score against rubric (Security, Limits, Bulk, Patterns, Completeness)
 4. Generate review report with findings
 
@@ -35,16 +35,16 @@ Invoke this skill when:
 
 ```bash
 # Full scan
-sf scanner run --target force-app/ --format table
+sf code-analyzer run --target force-app/ --format table
 
 # Security only
-sf scanner run --target force-app/ --category Security
+sf code-analyzer run --target force-app/ --category Security
 
 # Fail on critical issues
-sf scanner run --target force-app/ --severity-threshold 2
+sf code-analyzer run --target force-app/ --severity-threshold 2
 
 # Export report
-sf scanner run --target force-app/ --format html --outfile report.html
+sf code-analyzer run --target force-app/ --format html --outfile report.html
 ```
 
 ## Related Skills
