@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/github/copilot-hooks/main/schema.json",
+  "name": "format-on-save",
+  "description": "Format Salesforce files on save",
+  "event": "PostToolUse",
+  "tools": ["create_file", "replace_string_in_file"],
+  "match": {
+    "filePath": "**/*.{cls,trigger,html,js,css}"
+  },
+  "action": {
+    "type": "command",
+    "command": "npm run prettier -- --write \"${filePath}\""
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/github/copilot-hooks/main/schema.json",
+  "name": "pre-deploy-scan",
+  "description": "Run Salesforce Code Analyzer before deployments",
+  "event": "PreToolUse",
+  "tools": ["run_in_terminal"],
+  "match": {
+    "command": "sf project deploy"
+  },
+  "action": {
+    "type": "prompt",
+    "message": "⚠️ Running security scan before deployment...",
+    "command": "sf scanner run --target force-app --category Security --severity-threshold 2 --format table"
+  },
+  "onFailure": {
+    "type": "block",
+    "message": "❌ Deployment blocked: Critical security issues found. Fix the issues above before deploying."
+  }
+}
