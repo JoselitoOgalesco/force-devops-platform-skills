@@ -6,7 +6,7 @@ description: |
   HttpCalloutMock implementations.
 metadata:
   author: AI generated for Force.com DevOps Platform Team
-  version: "1.0.0"
+  version: "1.1.0"
   tags: salesforce, apex, testing, code-coverage
 ---
 
@@ -120,6 +120,13 @@ static void testProcess_200Records_succeeds() {
 ### 4. Permission Tests
 Test with restricted user profile.
 
+> **CRITICAL: Custom Object Access**
+> Standard Users have **NO access** to custom objects by default. When using `System.runAs()`
+> with custom objects, you **MUST** assign a Permission Set that grants object access, or you'll get:
+> `QueryException: sObject type 'MyObject__c' is not supported`
+> This error occurs **before** any OWD/sharing checks can happen.
+
+**For Standard Objects (Account, Contact, etc.):**
 ```apex
 @IsTest
 static void testProcess_restrictedUser_throwsSecurityException() {
@@ -138,6 +145,24 @@ static void testProcess_restrictedUser_throwsSecurityException() {
                 'Should throw security exception');
         }
         Test.stopTest();
+    }
+}
+```
+
+**For Custom Objects (requires Permission Set):**
+```apex
+@IsTest
+static void testProcess_differentUser_noRecordAccess() {
+    // User has object access via Permission Set but shouldn't see other users' records (OWD = Private)
+    User testUser = TestDataFactory.createUserWithPermissionSet('My_App_Permission_Set');
+
+    System.runAs(testUser) {
+        Test.startTest();
+        List<My_Custom_Object__c> results = MyService.getRecords();
+        Test.stopTest();
+
+        // User can query the object but sees no records (OWD enforcement)
+        System.assertEquals(0, results.size(), 'User should not see other users\' records');
     }
 }
 ```
@@ -206,6 +231,25 @@ public class TestDataFactory {
             ProfileId = p.Id,
             LanguageLocaleKey = 'en_US'
         );
+    }
+
+    /**
+     * Creates a Standard User WITH a Permission Set assigned.
+     * IMPORTANT: Standard Users have NO access to custom objects by default.
+     * Always use this method when testing custom object access with System.runAs().
+     *
+     * @param permSetName API name of the Permission Set to assign
+     * @return User with Permission Set assigned (already inserted)
+     */
+    public static User createUserWithPermissionSet(String permSetName) {
+        User u = createStandardUser();
+        insert u;
+
+        if (String.isNotBlank(permSetName)) {
+            PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :permSetName LIMIT 1];
+            insert new PermissionSetAssignment(AssigneeId = u.Id, PermissionSetId = ps.Id);
+        }
+        return u;
     }
 
     public static User createAdminUser() {
@@ -560,6 +604,7 @@ static void testRestEndpoint() {
 | Create `TestDataFactory` class | Reusable, consistent test data |
 | NEVER use `SeeAllData=true` | Exposes production data, breaks isolation |
 | Test sync AND async paths | Full coverage |
+| Assign Permission Set for custom objects | Standard Users have no custom object access |
 
 ## Gotchas
 
@@ -573,6 +618,7 @@ static void testRestEndpoint() {
 | Single startTest/stopTest | Can only call once per test method |
 | Batch finish() | Also runs after `Test.stopTest()` |
 | Mixed DML | `MIXED_DML_OPERATION` — use `System.runAs()` |
+| Custom Object Access | Standard User + `System.runAs()` + custom object = `QueryException` — assign Permission Set first |
 
 ## Deployment
 

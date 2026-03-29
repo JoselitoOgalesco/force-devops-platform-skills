@@ -416,19 +416,17 @@ if (FeatureManagement.checkPermission('Admin_Override')) {
 
 ```bash
 # Full security scan
-sf code-analyzer run --target force-app/ \
-  --category "Security,Best Practices" \
-  --format csv \
-  --outfile security-report.csv
+sf code-analyzer run --workspace force-app/ \
+  --rule-selector "Security,BestPractices" \
+  --output-file security-report.csv
 
 # Fail build on security issues
-sf code-analyzer run --target force-app/ \
-  --violations-cause-error \
+sf code-analyzer run --workspace force-app/ \
   --severity-threshold 2
 
-# Check specific patterns
-sf code-analyzer run --target force-app/ \
-  --pmd-category Security
+# Run PMD security rules
+sf code-analyzer run --workspace force-app/ \
+  --rule-selector pmd:Security
 ```
 
 ---

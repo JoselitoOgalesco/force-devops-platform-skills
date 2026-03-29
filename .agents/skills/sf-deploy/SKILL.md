@@ -347,7 +347,7 @@ jobs:
       - name: Run Code Analyzer
         run: |
           sf plugins install @salesforce/plugin-code-analyzer
-          sf code-analyzer run --target force-app/ --format sarif --outfile results.sarif
+          sf code-analyzer run --workspace force-app/ --output-file results.sarif
         continue-on-error: true
 
       - name: Upload SARIF

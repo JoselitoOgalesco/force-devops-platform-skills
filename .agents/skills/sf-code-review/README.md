@@ -18,7 +18,7 @@ This skill provides a structured approach to code review using Salesforce Code A
 ## Quick Start
 
 1. Install Code Analyzer: `sf plugins install @salesforce/plugin-code-analyzer`
-2. Run scan: `sf code-analyzer run --target force-app/ --format table`
+2. Run scan: `sf code-analyzer run --workspace force-app/ --view table`
 3. Score against rubric (Security, Limits, Bulk, Patterns, Completeness)
 4. Generate review report with findings
 
@@ -35,16 +35,16 @@ Invoke this skill when:
 
 ```bash
 # Full scan
-sf code-analyzer run --target force-app/ --format table
+sf code-analyzer run --workspace force-app/ --view table
 
 # Security only
-sf code-analyzer run --target force-app/ --category Security
+sf code-analyzer run --workspace force-app/ --rule-selector Security
 
 # Fail on critical issues
-sf code-analyzer run --target force-app/ --severity-threshold 2
+sf code-analyzer run --workspace force-app/ --severity-threshold 2
 
 # Export report
-sf code-analyzer run --target force-app/ --format html --outfile report.html
+sf code-analyzer run --workspace force-app/ --output-file report.html
 ```
 
 ## Related Skills

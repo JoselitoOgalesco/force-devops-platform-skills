@@ -66,51 +66,51 @@ sf code-analyzer --version
 
 ```bash
 # Full scan on force-app folder
-sf code-analyzer run --target force-app/ --format table
+sf code-analyzer run --workspace force-app/ --view table
 
 # Scan specific file
-sf code-analyzer run --target force-app/main/default/classes/MyClass.cls --format table
+sf code-analyzer run --workspace force-app/main/default/classes/MyClass.cls --view table
 
 # Scan multiple paths
-sf code-analyzer run --target "force-app/main/default/classes/,force-app/main/default/triggers/" --format table
+sf code-analyzer run --workspace force-app/main/default/classes/ --workspace force-app/main/default/triggers/ --view table
 
 # Security-focused scan
-sf code-analyzer run --target force-app/ --category Security --format table
+sf code-analyzer run --workspace force-app/ --rule-selector Security --view table
 
 # PMD rules only
-sf code-analyzer run --target force-app/ --engine pmd --format table
+sf code-analyzer run --workspace force-app/ --rule-selector pmd --view table
 ```
 
 ### Output Formats
 
 ```bash
 # Table format (terminal display)
-sf code-analyzer run --target force-app/ --format table
+sf code-analyzer run --workspace force-app/ --view table
 
 # CSV format (spreadsheet analysis)
-sf code-analyzer run --target force-app/ --format csv --outfile results.csv
+sf code-analyzer run --workspace force-app/ --output-file results.csv
 
 # JSON format (programmatic processing)
-sf code-analyzer run --target force-app/ --format json --outfile results.json
-
-# SARIF format (GitHub Code Scanning)
-sf code-analyzer run --target force-app/ --format sarif --outfile results.sarif
+sf code-analyzer run --workspace force-app/ --output-file results.json
 
 # HTML report (shareable)
-sf code-analyzer run --target force-app/ --format html --outfile report.html
+sf code-analyzer run --workspace force-app/ --output-file report.html
+
+# Multiple output formats simultaneously
+sf code-analyzer run --workspace force-app/ --output-file results.csv --output-file results.html
 ```
 
 ### Severity Thresholds
 
 ```bash
 # Fail if any Critical (1) or High (2) issues found
-sf code-analyzer run --target force-app/ --severity-threshold 2
+sf code-analyzer run --workspace force-app/ --severity-threshold 2
 
 # Fail only on Critical issues
-sf code-analyzer run --target force-app/ --severity-threshold 1
+sf code-analyzer run --workspace force-app/ --severity-threshold 1
 
-# Show violations but don't fail
-sf code-analyzer run --target force-app/ --severity-threshold 4
+# Show violations but don't fail (Low severity)
+sf code-analyzer run --workspace force-app/ --severity-threshold 4
 ```
 
 | Severity | Level | Action |
@@ -401,11 +401,10 @@ jobs:
       - name: Run Security Scan
         run: |
           sf code-analyzer run \
-            --target force-app/ \
-            --category Security \
+            --workspace force-app/ \
+            --rule-selector Security \
             --severity-threshold 2 \
-            --format sarif \
-            --outfile results.sarif
+            --output-file results.sarif
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -420,7 +419,7 @@ jobs:
 # .git/hooks/pre-commit
 
 echo "Running Salesforce Code Analyzer..."
-sf code-analyzer run --target force-app/ --severity-threshold 2
+sf code-analyzer run --workspace force-app/ --severity-threshold 2
 
 if [ $? -ne 0 ]; then
     echo "❌ Code Analyzer found critical issues. Fix before committing."
@@ -438,30 +437,30 @@ echo "✅ Code review passed!"
 
 ```bash
 # ❌ Just running and ignoring output
-sf code-analyzer run --target force-app/
+sf code-analyzer run --workspace force-app/
 
 # ✅ Setting severity threshold to fail on issues
-sf code-analyzer run --target force-app/ --severity-threshold 2
+sf code-analyzer run --workspace force-app/ --severity-threshold 2
 ```
 
 ### Mistake 2: Only Scanning Changed Files
 
 ```bash
 # ❌ Only scanning one file misses cross-file issues
-sf code-analyzer run --target force-app/main/default/classes/OneFile.cls
+sf code-analyzer run --workspace force-app/main/default/classes/OneFile.cls
 
 # ✅ Scan the full folder to catch dependencies
-sf code-analyzer run --target force-app/main/default/classes/
+sf code-analyzer run --workspace force-app/main/default/classes/
 ```
 
-### Mistake 3: Skipping Security Category
+### Mistake 3: Skipping Security Rules
 
 ```bash
-# ❌ Default scan may miss security-specific rules
-sf code-analyzer run --target force-app/
+# ❌ Default scan uses only Recommended rules
+sf code-analyzer run --workspace force-app/
 
-# ✅ Explicitly include Security category
-sf code-analyzer run --target force-app/ --category "Security,Best Practices"
+# ✅ Explicitly include Security rules
+sf code-analyzer run --workspace force-app/ --rule-selector "Security,BestPractices"
 ```
 
 ---

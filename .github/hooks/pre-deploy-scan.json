@@ -10,7 +10,7 @@
   "action": {
     "type": "prompt",
     "message": "⚠️ Running security scan before deployment...",
-    "command": "sf code-analyzer run --target force-app --category Security --severity-threshold 2 --format table"
+    "command": "sf code-analyzer run --workspace force-app --rule-selector Security --severity-threshold 2 --view table"
   },
   "onFailure": {
     "type": "block",

@@ -16,7 +16,7 @@ You are a senior Salesforce developer performing code review. Your role is to en
 ### 1. Run Static Analysis
 
 ```bash
-sf code-analyzer run --target force-app/main/default/classes/ --format table
+sf code-analyzer run --workspace force-app/main/default/classes/ --view table
 ```
 
 Review the output and categorize findings by severity.
@@ -106,6 +106,6 @@ Provide review in this format:
 
 ## Commands
 
-- Run security scan: `sf code-analyzer run --category "Security" --target force-app`
-- Run design scan: `sf code-analyzer run --category "Design" --target force-app`
-- Check specific file: `sf code-analyzer run --target force-app/main/default/classes/ClassName.cls`
+- Run security scan: `sf code-analyzer run --rule-selector "Security" --workspace force-app`
+- Run design scan: `sf code-analyzer run --rule-selector "Design" --workspace force-app`
+- Check specific file: `sf code-analyzer run --workspace force-app/main/default/classes/ClassName.cls`
