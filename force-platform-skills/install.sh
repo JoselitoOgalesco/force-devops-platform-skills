@@ -26,6 +26,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SOURCE="$SCRIPT_DIR/skills"
 REFERENCES_SOURCE="$SCRIPT_DIR/references"
+AGENTS_SOURCE="$SCRIPT_DIR/agents"
 
 # Default target is current directory
 TARGET_DIR="$(pwd)"
@@ -71,6 +72,11 @@ COPILOT_DIR="$TARGET_DIR/.github/skills"
 CLAUDE_DIR="$TARGET_DIR/.claude/skills"
 AGENTS_DIR="$TARGET_DIR/.agents/skills"
 
+# Agent directories
+COPILOT_AGENTS_DIR="$TARGET_DIR/.github/agents"
+CLAUDE_AGENTS_DIR="$TARGET_DIR/.claude/agents"
+GENERIC_AGENTS_DIR="$TARGET_DIR/.agents/agents"
+
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║       Force Platform Skills - Multi-Platform Installer     ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
@@ -85,10 +91,23 @@ if [ "$UNINSTALL" = true ]; then
             for skill in sf-apex sf-lwc sf-soql sf-test sf-flow sf-schema sf-permissions \
                          sf-integration sf-deploy sf-data sf-debug sf-security \
                          sf-agentforce sf-omnistudio sf-diagram sf-docs sf-find \
-                         sf-code-review sf-eval; do
+                         sf-code-review sf-eval sf-scratch-org; do
                 if [ -d "$dir/$skill" ]; then
                     rm -rf "$dir/$skill"
                     echo -e "  ${RED}✗${NC} Removed $dir/$skill"
+                fi
+            done
+        fi
+    done
+
+    echo -e "${YELLOW}Uninstalling agents from: $TARGET_DIR${NC}"
+
+    for dir in "$COPILOT_AGENTS_DIR" "$CLAUDE_AGENTS_DIR" "$GENERIC_AGENTS_DIR"; do
+        if [ -d "$dir" ]; then
+            for agent in sf-reviewer devops-researcher; do
+                if [ -f "$dir/$agent.agent.md" ]; then
+                    rm -f "$dir/$agent.agent.md"
+                    echo -e "  ${RED}✗${NC} Removed $dir/$agent.agent.md"
                 fi
             done
         fi
@@ -188,6 +207,29 @@ if [ -d "$REFERENCES_SOURCE" ]; then
     done
 fi
 
+# Install agents if they exist
+if [ -d "$AGENTS_SOURCE" ]; then
+    AGENT_COUNT=$(find "$AGENTS_SOURCE" -maxdepth 1 -name "*.agent.md" | wc -l | tr -d ' ')
+    echo -e "\n${BLUE}Installing $AGENT_COUNT agents...${NC}"
+
+    # Create agent directories
+    mkdir -p "$COPILOT_AGENTS_DIR"
+    mkdir -p "$CLAUDE_AGENTS_DIR"
+    mkdir -p "$GENERIC_AGENTS_DIR"
+
+    for agent in "$AGENTS_SOURCE"/*.agent.md; do
+        if [ -f "$agent" ]; then
+            agent_name=$(basename "$agent")
+            echo -e "\n${YELLOW}Installing agent: $agent_name${NC}"
+
+            for target in "$COPILOT_AGENTS_DIR" "$CLAUDE_AGENTS_DIR" "$GENERIC_AGENTS_DIR"; do
+                cp "$agent" "$target/"
+                echo -e "  ${GREEN}✓${NC} $target/$agent_name"
+            done
+        fi
+    done
+fi
+
 # Create workspace instruction files
 echo -e "\n${BLUE}Creating workspace instruction file...${NC}"
 
@@ -241,6 +283,11 @@ echo -e "  • $COPILOT_DIR"
 echo -e "  • $CLAUDE_DIR"
 echo -e "  • $AGENTS_DIR"
 echo ""
+echo -e "${BLUE}Agents installed to:${NC}"
+echo -e "  • $COPILOT_AGENTS_DIR"
+echo -e "  • $CLAUDE_AGENTS_DIR"
+echo -e "  • $GENERIC_AGENTS_DIR"
+echo ""
 echo -e "${BLUE}Workspace file created:${NC}"
 echo -e "  • AGENTS.md (works with all AI tools)"
 echo ""
@@ -248,3 +295,4 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo -e "  1. Restart your AI coding assistant"
 echo -e "  2. Try: /sf-find to discover available skills"
 echo -e "  3. Or load directly: /sf-apex, /sf-lwc, etc."
+echo -e "  4. Use @devops-researcher or @sf-reviewer for specialized agents"

@@ -8,8 +8,8 @@ description: |
   security review preparation.
 metadata:
   author: AI generated for Force.com DevOps Platform Team
-  version: "2.0.0"
-  tags: salesforce, code-review, security, pmd, code-analyzer, quality
+  version: "3.0.0"
+  tags: salesforce, code-review, security, pmd, code-analyzer, quality, runtime-validation
 ---
 
 # Salesforce Code Review Guide
@@ -123,9 +123,9 @@ sf code-analyzer run --workspace force-app/ --severity-threshold 4
 
 ---
 
-## Quality Rubric (25 Points Total)
+## Quality Rubric (30 Points Total)
 
-Score each category from 0-5 points. Total of 25 points possible.
+Score each category from 0-5 points. Total of 30 points possible (25 static + 5 runtime).
 
 ### Category 1: Security (0-5 points)
 
@@ -271,17 +271,35 @@ update toUpdate;
 - [ ] ApexDoc comments on public methods
 - [ ] Handles empty collections gracefully
 
+### Category 6: Runtime Validation (0-5 points)
+
+| Score | Criteria |
+|-------|----------|
+| 0 | No runtime testing performed |
+| 1 | Tests run but failures ignored |
+| 2 | Tests pass locally |
+| 3 | Tests pass in target org |
+| 4 | Tests + manual smoke test |
+| 5 | Full integration test suite passes |
+
+**Checklist:**
+- [ ] Deployment successful with no compile errors
+- [ ] All custom objects/fields exist in target org
+- [ ] FieldDefinition query confirms schema accessibility
+- [ ] Test execution passes in target org
+- [ ] Permission sets include required FLS
+
 ---
 
 ## Grade Scale
 
 | Score | Grade | Meaning |
 |-------|-------|---------|
-| 23-25 | ⭐⭐⭐⭐⭐ Excellent | Production ready, exemplary code |
-| 19-22 | ⭐⭐⭐⭐ Good | Minor improvements, deploy-ready |
-| 15-18 | ⭐⭐⭐ Acceptable | Several issues to address |
-| 10-14 | ⭐⭐ Needs Work | Significant refactoring required |
-| 0-9 | ⭐ Critical | Major rewrite needed |
+| 28-30 | ⭐⭐⭐⭐⭐ Excellent | Production ready, exemplary code |
+| 23-27 | ⭐⭐⭐⭐ Good | Minor improvements, deploy-ready |
+| 18-22 | ⭐⭐⭐ Acceptable | Several issues to address |
+| 12-17 | ⭐⭐ Needs Work | Significant refactoring required |
+| 0-11 | ⭐ Critical | Major rewrite needed |
 
 ---
 
@@ -298,24 +316,199 @@ Use these patterns to search for common vulnerabilities:
 | Debug with PII | `System\.debug.*SSN\|Password` | Remove PII from logs |
 | Missing null check | Direct `.` after method call | Add null check |
 
-### grep Commands for Quick Checks
+---
+
+## Runtime Validation
+
+Static analysis catches code quality issues, but runtime validation catches deployment and schema issues that only appear when code executes in an org.
+
+### Why Static Analysis Isn't Enough
+
+Code Analyzer validates:
+- ✅ Syntax correctness
+- ✅ Security patterns (CRUD/FLS)
+- ✅ Governor limit patterns (SOQL in loops)
+- ✅ Best practice adherence
+
+Code Analyzer does NOT validate:
+- ❌ Schema existence (does the field exist in target org?)
+- ❌ Permission assignments (does user have FLS?)
+- ❌ Apex compilation against live schema
+- ❌ Runtime behavior of queries
+
+### Runtime Validation Checklist
+
+After static analysis passes, perform these runtime checks:
+
+#### 1. Schema Verification
+```bash
+# Verify custom fields exist and are accessible
+sf data query --query "SELECT QualifiedApiName, DataType FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = 'My_Object__c'" \
+  --target-org myOrg --use-tooling-api
+```
+
+#### 2. Apex Compilation Check
+```bash
+# Force compile all Apex to verify against current schema
+sf apex run -f scripts/apex/compile-check.apex --target-org myOrg
+```
+
+Where `compile-check.apex` queries each custom object to verify Apex can access fields:
+```apex
+try {
+    SObject test = Database.query('SELECT Id, My_Field__c FROM My_Object__c LIMIT 1');
+    System.debug('✅ My_Object__c.My_Field__c is queryable');
+} catch (QueryException e) {
+    System.debug('❌ Query failed: ' + e.getMessage());
+}
+```
+
+#### 3. Test Execution
+```bash
+# Run tests to validate runtime behavior
+sf apex run test --test-level RunLocalTests --target-org myOrg --wait 10
+```
+
+#### 4. Permission Validation
+```bash
+# Verify permission set includes required fields
+sf data query --query "SELECT Field, PermissionsRead, PermissionsEdit FROM FieldPermissions WHERE Parent.Name = 'My_Permission_Set' AND SobjectType = 'My_Object__c'" \
+  --target-org myOrg --use-tooling-api
+```
+
+---
+
+## Post-Deployment Verification
+
+After successful deployment, verify the code works at runtime:
+
+### Immediate Verification (Automated)
 
 ```bash
-# Find classes without sharing declaration
-grep -rn "public class" force-app/main/default/classes/ | grep -v "sharing"
+# 1. Run specific test classes for deployed components
+sf apex run test --class-names MyServiceTest --target-org myOrg --wait 10
 
-# Find SOQL without USER_MODE
-grep -rn "\[SELECT" force-app/main/default/classes/ | grep -v "USER_MODE"
+# 2. Check for async errors
+sf apex tail log --target-org myOrg
 
-# Find potential SOQL injection
-grep -rn "SELECT.*FROM.*WHERE.*'\s*\+" force-app/main/default/classes/
-
-# Find hardcoded IDs
-grep -rn "'001\|'003\|'005\|'00D" force-app/main/default/classes/
-
-# Find System.debug with potential PII
-grep -rn "System\.debug.*password\|System\.debug.*secret" force-app/main/default/classes/
+# 3. Verify no outstanding deploy errors
+sf project deploy report --target-org myOrg
 ```
+
+### Verification Apex Script
+
+Create a reusable verification script:
+
+```apex
+// scripts/apex/verify-deployment.apex
+
+// Test schema accessibility
+System.debug('=== Schema Verification ===');
+Map<String, Schema.SObjectType> globalDescribe = Schema.getGlobalDescribe();
+
+List<String> requiredObjects = new List<String>{
+    'My_Object__c',
+    'My_Child_Object__c'
+};
+
+for (String objName : requiredObjects) {
+    if (globalDescribe.containsKey(objName)) {
+        System.debug('✅ ' + objName + ' exists');
+
+        // Verify key fields
+        Schema.DescribeSObjectResult objDescribe = globalDescribe.get(objName).getDescribe();
+        Map<String, Schema.SObjectField> fields = objDescribe.fields.getMap();
+
+        List<String> requiredFields = new List<String>{
+            'My_Field__c',
+            'Another_Field__c'
+        };
+
+        for (String fieldName : requiredFields) {
+            if (fields.containsKey(fieldName.toLowerCase())) {
+                System.debug('  ✅ ' + fieldName + ' accessible');
+            } else {
+                System.debug('  ❌ ' + fieldName + ' NOT accessible');
+            }
+        }
+    } else {
+        System.debug('❌ ' + objName + ' NOT FOUND');
+    }
+}
+
+// Test query execution
+System.debug('=== Query Verification ===');
+try {
+    Integer count = [SELECT COUNT() FROM My_Object__c];
+    System.debug('✅ Query succeeded: ' + count + ' records');
+} catch (QueryException e) {
+    System.debug('❌ Query failed: ' + e.getMessage());
+}
+```
+
+### Manual Smoke Test Checklist
+
+For UI components (LWC, Flows):
+
+- [ ] Component renders without JavaScript errors
+- [ ] Data loads correctly
+- [ ] CRUD operations work (create, edit, delete)
+- [ ] Error messages display properly
+- [ ] Permission-restricted features hidden for regular users
+
+---
+
+## Diagnosing Schema Synchronization Issues
+
+When Code Analyzer passes but Apex fails with "No such column" errors:
+
+### Symptoms
+1. Deployment reports success
+2. Fields visible in Setup > Object Manager
+3. FieldDefinition query shows fields
+4. Apex test throws QueryException: "No such column 'X' on 'Y'"
+
+### Root Cause
+Apex runtime compiled against stale schema metadata. The compiler caches schema information.
+
+### Diagnosis Commands
+
+```bash
+# Check field exists at metadata level
+sf data query --query "SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = 'My_Object__c'" \
+  --target-org myOrg --use-tooling-api
+
+# Check Apex class compilation status
+sf data query --query "SELECT Name, Status, LastModifiedDate FROM ApexClass WHERE Name = 'MyService'" \
+  --target-org myOrg --use-tooling-api
+```
+
+### Resolution Steps
+
+1. **Add version comment to Apex**
+   ```apex
+   /**
+    * @version 1.0.1 - Force recompile
+    */
+   ```
+
+2. **Redeploy the Apex class**
+   ```bash
+   sf project deploy start -m ApexClass:MyService --target-org myOrg
+   ```
+
+3. **Verify with test run**
+   ```bash
+   sf apex run test --class-names MyServiceTest --target-org myOrg
+   ```
+
+### Prevention
+
+Add to your deployment workflow:
+1. Deploy objects/fields first
+2. Verify with FieldDefinition query
+3. Deploy Apex second
+4. Run tests to confirm schema access
 
 ---
 
@@ -327,12 +520,14 @@ grep -rn "System\.debug.*password\|System\.debug.*secret" force-app/main/default
 **File(s) Reviewed:** {list of files}
 **Reviewer:** {name or agent}
 **Date:** {current date}
+**Target Org:** {org alias}
 
-## Code Analyzer Results
+## Static Analysis Results
 
+### Code Analyzer Output
 {Paste output from sf code-analyzer run}
 
-## Quality Scores
+### Quality Scores (Static)
 
 | Category | Score | Notes |
 |----------|-------|-------|
@@ -341,134 +536,41 @@ grep -rn "System\.debug.*password\|System\.debug.*secret" force-app/main/default
 | Bulkification | X/5 | {brief note} |
 | Patterns | X/5 | {brief note} |
 | Completeness | X/5 | {brief note} |
-| **Total** | **XX/25** | **Grade: ⭐⭐⭐⭐** |
+| **Static Total** | **XX/25** | |
+
+## Runtime Validation Results
+
+### Deployment Status
+- [ ] Deployment successful
+- [ ] No compile errors
+
+### Schema Verification
+- [ ] All custom objects exist
+- [ ] All custom fields accessible
+- [ ] FieldDefinition query confirms fields
+
+### Test Execution
+- Tests Run: {count}
+- Pass Rate: {percentage}
+- Code Coverage: {percentage}
+
+### Runtime Score
+
+| Criteria | Score | Notes |
+|----------|-------|-------|
+| Runtime Validation | X/5 | {deployment, tests, verification} |
+
+## Combined Score
+
+| Section | Score |
+|---------|-------|
+| Static Analysis | XX/25 |
+| Runtime Validation | X/5 |
+| **Total** | **XX/30** |
 
 ## Critical Issues (Must Fix)
-
-1. **{Issue Title}**
-   - **Location:** {file}:{line}
-   - **Problem:** {description}
-   - **Fix:** {recommendation}
-   - **Code:**
-     ```apex
-     // ❌ Before
-     {problematic code}
-
-     // ✅ After
-     {fixed code}
-     ```
-
-## Warnings (Should Fix)
-
-1. **{Issue Title}**
-   - **Location:** {file}:{line}
-   - **Fix:** {recommendation}
-
-## Suggestions (Nice to Have)
-
-1. {Improvement suggestion}
+{list issues}
 
 ## Summary
-
-{Overall assessment and recommended next steps}
+{Overall assessment including both static and runtime findings}
 ```
-
----
-
-## CI/CD Integration
-
-### GitHub Actions
-
-```yaml
-name: Code Review
-on:
-  pull_request:
-    paths:
-      - 'force-app/**'
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Salesforce CLI
-        run: npm install -g @salesforce/cli
-
-      - name: Install Code Analyzer
-        run: sf plugins install @salesforce/plugin-code-analyzer
-
-      - name: Run Security Scan
-        run: |
-          sf code-analyzer run \
-            --workspace force-app/ \
-            --rule-selector Security \
-            --severity-threshold 2 \
-            --output-file results.sarif
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
-```
-
-### Pre-commit Hook
-
-```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-
-echo "Running Salesforce Code Analyzer..."
-sf code-analyzer run --workspace force-app/ --severity-threshold 2
-
-if [ $? -ne 0 ]; then
-    echo "❌ Code Analyzer found critical issues. Fix before committing."
-    exit 1
-fi
-
-echo "✅ Code review passed!"
-```
-
----
-
-## Common Mistakes & Fixes
-
-### Mistake 1: Ignoring Scanner Warnings
-
-```bash
-# ❌ Just running and ignoring output
-sf code-analyzer run --workspace force-app/
-
-# ✅ Setting severity threshold to fail on issues
-sf code-analyzer run --workspace force-app/ --severity-threshold 2
-```
-
-### Mistake 2: Only Scanning Changed Files
-
-```bash
-# ❌ Only scanning one file misses cross-file issues
-sf code-analyzer run --workspace force-app/main/default/classes/OneFile.cls
-
-# ✅ Scan the full folder to catch dependencies
-sf code-analyzer run --workspace force-app/main/default/classes/
-```
-
-### Mistake 3: Skipping Security Rules
-
-```bash
-# ❌ Default scan uses only Recommended rules
-sf code-analyzer run --workspace force-app/
-
-# ✅ Explicitly include Security rules
-sf code-analyzer run --workspace force-app/ --rule-selector "Security,BestPractices"
-```
-
----
-
-## Related Skills
-
-- [sf-security](../sf-security/) - Deep dive on CRUD/FLS and sharing
-- [sf-apex](../sf-apex/) - Apex coding patterns and governor limits
-- [sf-test](../sf-test/) - Writing test classes for reviewed code
-- [sf-deploy](../sf-deploy/) - CI/CD pipeline integration
-- [sf-eval](../sf-eval/) - Detailed evaluation rubric

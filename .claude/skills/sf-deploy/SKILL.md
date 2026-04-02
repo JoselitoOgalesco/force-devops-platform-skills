@@ -4,11 +4,12 @@ description: |
   Execute Salesforce deployments with proper dependency resolution, error handling,
   CI/CD pipeline patterns, rollback strategies, and release management. Covers
   SFDX deployments, package development, JWT authentication, delta deployments,
-  destructive changes, and multi-org deployment patterns.
+  destructive changes, multi-org deployment patterns, and fresh scratch org
+  schema synchronization.
 metadata:
   author: AI generated for Force.com DevOps Platform Team
-  version: "2.0.0"
-  tags: salesforce, deployment, ci-cd, devops, github-actions, release-management
+  version: "3.0.0"
+  tags: salesforce, deployment, ci-cd, devops, github-actions, release-management, scratch-org
 ---
 
 # Salesforce Deployment Guide
@@ -214,6 +215,87 @@ public class AccountService implements IAccountService { ... }
 Type serviceType = Type.forName('AccountService');
 IAccountService service = (IAccountService) serviceType.newInstance();
 ```
+
+---
+
+## Phased Deployment for Fresh Scratch Orgs
+
+When deploying to a **fresh scratch org**, use phased deployment to ensure Apex compiles against the correct schema:
+
+**Problem:** Deploying the entire source folder atomically can cause Apex classes to compile before custom object metadata is fully registered in the org's schema cache.
+
+**Solution:** Deploy in phases with explicit verification between each phase.
+
+```
+┌────────────────────────────────────────────────────┐
+│  PHASE 1 - Schema Only (Objects + Fields)         │
+│  Deploy custom objects and fields first            │
+│  Verify fields exist with FieldDefinition query   │
+└───────────────────────┬────────────────────────────┘
+                        ▼
+┌────────────────────────────────────────────────────┐
+│  PHASE 2 - Apex Classes                            │
+│  Deploy Apex separately so it compiles against    │
+│  the now-registered schema                         │
+└───────────────────────┬────────────────────────────┘
+                        ▼
+┌────────────────────────────────────────────────────┐
+│  PHASE 3 - Everything Else                         │
+│  LWC, Flows, Permission Sets, etc.                │
+└────────────────────────────────────────────────────┘
+```
+
+### Phased Deployment Commands
+
+```bash
+# Phase 1: Deploy objects only
+sf project deploy start -d force-app/main/default/objects/ \
+  --target-org fresh-scratch-org --wait 10
+
+# Verify fields are registered
+sf data query --query "SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinitionId = 'My_Custom_Object__c'" \
+  --target-org fresh-scratch-org --use-tooling-api
+
+# Phase 2: Deploy Apex
+sf project deploy start -d force-app/main/default/classes/ \
+  -d force-app/main/default/triggers/ \
+  --target-org fresh-scratch-org --wait 10
+
+# Phase 3: Deploy remaining components
+sf project deploy start -d force-app/ --target-org fresh-scratch-org --wait 10
+```
+
+### Fresh Scratch Org Deployment Checklist
+
+For brand new scratch orgs where no prior deployments have occurred:
+
+#### Pre-Deployment
+- [ ] Scratch org created successfully
+- [ ] Org alias set correctly
+- [ ] Features defined in project-scratch-def.json match requirements
+
+#### Phase 1: Schema Deployment
+- [ ] Deploy objects folder only: `sf project deploy start -d force-app/main/default/objects/`
+- [ ] Verify objects exist: Check Setup > Object Manager
+- [ ] Verify fields via FieldDefinition:
+  ```bash
+  sf data query --query "SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = 'My_Object__c'" --use-tooling-api
+  ```
+
+#### Phase 2: Apex Deployment
+- [ ] Deploy classes and triggers: `sf project deploy start -m ApexClass -m ApexTrigger`
+- [ ] Check deployment status for compile errors
+- [ ] If "No such column" errors, add version comment and redeploy
+
+#### Phase 3: Full Deployment
+- [ ] Deploy complete source: `sf project deploy start -d force-app/`
+- [ ] Verify deployment success
+
+#### Post-Deployment Validation
+- [ ] Run tests: `sf apex run test --test-level RunLocalTests`
+- [ ] Verify code coverage meets requirements
+- [ ] Assign permission sets to test user
+- [ ] Perform manual smoke test if applicable
 
 ---
 
@@ -471,6 +553,112 @@ sf project deploy start -d force-app/ \
 
 ---
 
+## Error Diagnosis
+
+### Common Deployment Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Code coverage is below 75%` | Insufficient tests | Add test coverage |
+| `Entity not found` | Missing dependency | Deploy dependency first |
+| `Dependent class is invalid` | Compile error | Fix dependent class |
+| `Test failure: assertion failed` | Test expecting wrong data | Fix test data/logic |
+| `INSUFFICIENT_ACCESS` | Permission issue | Check deployed permissions |
+| `DUPLICATE_VALUE` | Unique field violation | Fix duplicate in test |
+| `FIELD_CUSTOM_VALIDATION_EXCEPTION` | Validation blocking test | Bypass or fix test data |
+| `Component timeout` | Apex took >10s | Optimize code |
+| `No such column 'X' on 'Y'` | Schema cache stale | Add version comment to Apex, redeploy |
+| `Variable does not exist: MyField__c` | Field not in compiled schema | Deploy objects first, then Apex |
+
+### Apex Schema Cache Issues
+
+**Symptom:** "No such column 'MyField__c' on 'MyObject__c'" error at runtime, but:
+- Field exists in the org (visible in Setup)
+- Field shows in FieldDefinition query
+- Deployment reported success
+
+**Root Cause:** Apex classes compiled against stale schema metadata. The Salesforce compiler caches schema information, and redeploying unchanged Apex doesn't trigger recompilation.
+
+**Solution 1: Force Recompilation with Trivial Code Change**
+
+Add a version comment to force Apex recompilation:
+
+```apex
+/**
+ * @description My Service class
+ * @version 2.0.1 - Force recompile against updated schema
+ */
+public with sharing class MyService {
+    // ... existing code
+}
+```
+
+Then redeploy the class. The code change forces the compiler to recompile against the current schema.
+
+**Solution 2: Use MDAPI for Objects**
+
+MDAPI deployment uses a different path that may avoid the caching issue:
+
+```bash
+# Convert to MDAPI format
+sf project convert source -r force-app -d mdapi_temp
+
+# Deploy objects via MDAPI
+sf project deploy start -d mdapi_temp/objects/ \
+  --target-org myOrg --wait 10
+
+# Then deploy Apex via source format
+sf project deploy start -m ApexClass --target-org myOrg
+```
+
+**Solution 3: Compile All via Tooling API**
+
+Force recompilation of all Apex in the org:
+
+```bash
+sf apex run -f scripts/apex/recompile-all.apex --target-org myOrg
+```
+
+Where `recompile-all.apex` is:
+
+```apex
+// Force metadata refresh
+ApexClass[] classes = [SELECT Id, Body FROM ApexClass WHERE NamespacePrefix = null];
+System.debug('Found ' + classes.size() + ' classes - metadata refresh triggered');
+```
+
+**Verification Query:**
+
+After deployment, verify fields are queryable by Apex:
+
+```apex
+// Test that Apex can see the field
+SObject record = Database.query('SELECT Id, MyField__c FROM MyObject__c LIMIT 1');
+System.debug('Query successful - field is accessible');
+```
+
+### Debugging Failed Deployments
+
+```bash
+# Get detailed deployment status
+sf project deploy report --job-id <deploymentId>
+
+# Resume watching long deployment
+sf project deploy resume --job-id <deploymentId>
+
+# Get coverage report
+sf project deploy report --job-id <deploymentId> --coverage-formatters text
+```
+
+### Log Analysis
+
+Look for these in deployment logs:
+- `Dependent class is invalid` → Check class dependencies
+- `duplicate value found` → Check External IDs
+- `FIELD_FILTER_VALIDATION_EXCEPTION` → Check lookup filter
+
+---
+
 ## Rollback Strategies
 
 ### Strategy 1: Git Revert + Redeploy
@@ -516,43 +704,6 @@ sf package install --package 04t...(previous) --target-org myOrg
 | Field deletions | Data is lost | Archive data before |
 | Record Type changes | May affect data | Plan migration |
 | Permission removals | Affects users immediately | Test thoroughly |
-
----
-
-## Error Diagnosis
-
-### Common Deployment Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Code coverage is below 75%` | Insufficient tests | Add test coverage |
-| `Entity not found` | Missing dependency | Deploy dependency first |
-| `Dependent class is invalid` | Compile error | Fix dependent class |
-| `Test failure: assertion failed` | Test expecting wrong data | Fix test data/logic |
-| `INSUFFICIENT_ACCESS` | Permission issue | Check deployed permissions |
-| `DUPLICATE_VALUE` | Unique field violation | Fix duplicate in test |
-| `FIELD_CUSTOM_VALIDATION_EXCEPTION` | Validation blocking test | Bypass or fix test data |
-| `Component timeout` | Apex took >10s | Optimize code |
-
-### Debugging Failed Deployments
-
-```bash
-# Get detailed deployment status
-sf project deploy report --job-id <deploymentId>
-
-# Resume watching long deployment
-sf project deploy resume --job-id <deploymentId>
-
-# Get coverage report
-sf project deploy report --job-id <deploymentId> --coverage-formatters text
-```
-
-### Log Analysis
-
-Look for these in deployment logs:
-- `Dependent class is invalid` → Check class dependencies
-- `duplicate value found` → Check External IDs
-- `FIELD_FILTER_VALIDATION_EXCEPTION` → Check lookup filter
 
 ---
 
@@ -630,7 +781,7 @@ sf org create scratch --source-org myProdOrg \
 # Create
 sf org create scratch -f config/project-scratch-def.json -a scratch1
 
-# Push source
+# Push source (use phased deployment for fresh orgs)
 sf project deploy start --target-org scratch1
 
 # Assign permission sets

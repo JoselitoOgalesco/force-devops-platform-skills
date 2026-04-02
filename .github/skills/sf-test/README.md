@@ -1,40 +1,54 @@
-# sf-test
+# sf-test Merged Skill
 
-Generate comprehensive Apex test classes.
+**Version:** 2.0.0  
+**Merged From:** `force-platform-skills/skills/sf-test/SKILL.md` (v1.0.0) + `improved-skills/sf-test-IMPROVEMENTS.md`
 
-## Description
+## Change Summary
 
-This skill helps you create production-ready Apex test classes with @TestSetup methods, TestFactory patterns, bulk data testing (200 records), positive/negative/permission scenarios, and HttpCalloutMock implementations. Targets 85%+ code coverage with meaningful assertions.
+| Section | Change Type | Description |
+|---------|-------------|-------------|
+| Aligning Tests with Implementation Behavior | **NEW** | Don't assume exceptions; check implementation first |
+| Pattern A/B/C (Defensive/Strict/Permissive) | **NEW** | Three patterns for null handling behavior |
+| Flexible Test Template | **NEW** | Test pattern for unknown implementation behavior |
+| Test Generation Workflow | **NEW** | 4-step process for generating accurate tests |
+| Testing Record Status Values | **NEW** | Match test data to actual field implementation checks |
+| Rules table | **EXTENDED** | Added "ALWAYS read implementation first" |
+| Gotchas table | **EXTENDED** | Added wrong assertion pattern warning |
 
-## Features
+## Why These Changes?
 
-- **@TestSetup** — Efficient test data creation
-- **TestDataFactory** — Reusable test data patterns
-- **Bulk Testing** — 200-record scenarios
-- **Positive/Negative Tests** — Happy path and error cases
-- **Permission Testing** — Run as different users
-- **HttpCalloutMock** — Mock external callouts
-- **Assertions** — Meaningful validation
+The improvements address a common issue where generated tests assume specific exception-throwing behavior that doesn't match the actual implementation.
 
-## Quick Start
+### Problem Symptoms
 
-1. Create TestDataFactory for common objects
-2. Use @TestSetup for shared test data
-3. Write positive tests (happy path)
-4. Write negative tests (error handling)
-5. Write permission tests (different users)
-6. Mock all callouts with HttpCalloutMock
+- Generated tests expect `IllegalArgumentException` for null input
+- Implementation returns empty list instead of throwing
+- Tests fail with "Should have thrown exception"
 
-## Usage
+### Root Cause
 
-Invoke this skill when:
-- Creating test classes for Apex
-- Implementing mock callouts
-- Testing with different user contexts
-- Achieving code coverage requirements
+The original skill assumed strict validation patterns (throw on invalid input). Many implementations use defensive patterns (return empty/null).
 
-## Related Skills
+### Solutions Added
 
-- [sf-apex](../sf-apex/) — Code to test
-- [sf-debug](../sf-debug/) — Test debugging
-- [sf-security](../sf-security/) — Permission testing
+| Pattern | Implementation Style | Test Approach |
+|---------|---------------------|---------------|
+| A - Defensive | `return new List<>()` | Assert empty result |
+| B - Strict | `throw new IllegalArgumentException()` | Catch and verify exception |
+| C - Permissive | No validation, let SOQL handle | Assert non-null result |
+
+### New Workflow
+
+1. **Analyze implementation** — What does it actually do on null/invalid input?
+2. **Map behaviors** — Document each edge case behavior
+3. **Generate tests** — Match assertions to actual behavior
+4. **Adjust after run** — Fix any remaining mismatches
+
+## Files
+
+- [SKILL.md](SKILL.md) — Full merged skill
+
+## Original Sources
+
+- [`force-platform-skills/skills/sf-test/SKILL.md`](../../force-platform-skills/skills/sf-test/SKILL.md)
+- [`improved-skills/sf-test-IMPROVEMENTS.md`](../../improved-skills/sf-test-IMPROVEMENTS.md)

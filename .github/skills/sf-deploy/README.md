@@ -1,39 +1,46 @@
-# sf-deploy
+# sf-deploy Merged Skill
 
-Deploy Salesforce metadata safely and efficiently.
+**Version:** 3.0.0
+**Merged From:** `force-platform-skills/skills/sf-deploy/SKILL.md` (v2.0.0) + `improved-skills/sf-deploy-IMPROVEMENTS.md`
 
-## Description
+## Change Summary
 
-This skill provides guidance for deploying metadata to Salesforce orgs using SFDX, Metadata API, and change sets. Covers deployment strategies, validation, quick deploy, rollback planning, and CI/CD integration.
+| Section | Change Type | Description |
+|---------|-------------|-------------|
+| Phased Deployment for Fresh Scratch Orgs | **NEW** | Deploy in phases to avoid schema cache issues |
+| Fresh Scratch Org Deployment Checklist | **NEW** | Step-by-step checklist for new scratch orgs |
+| Apex Schema Cache Issues | **NEW** | Diagnosis and 3 solutions for "No such column" errors |
+| Common Deployment Errors | **EXTENDED** | Added schema cache error patterns |
 
-## Features
+## Why These Changes?
 
-- **SFDX Deployment** — sf project deploy commands
-- **Metadata API** — Package.xml-based deployments
-- **Change Sets** — Point-and-click deployment
-- **Validation** — Check-only deployments before committing
-- **Quick Deploy** — Reuse validated deployments
-- **Rollback Planning** — Destructive changes and recovery
-- **CI/CD Integration** — GitHub Actions, Jenkins pipelines
+The improvements address a specific issue observed when:
 
-## Quick Start
+1. Custom objects and Apex are deployed atomically to a fresh scratch org
+2. Apex compiles before object metadata is fully registered in the schema cache
+3. The compiled Apex cannot query fields that technically exist ("No such column" error)
 
-1. Validate deployment: `sf project deploy start --dry-run`
-2. Review test results and coverage
-3. Deploy: `sf project deploy start`
-4. Verify in target org
-5. Document changes for rollback
+### Problem Symptoms
 
-## Usage
+- Deployment reports success
+- Fields visible in Setup > Object Manager
+- Fields appear in FieldDefinition query
+- Runtime error: `No such column 'MyField__c' on 'MyObject__c'`
 
-Invoke this skill when:
-- Deploying metadata to production
-- Setting up CI/CD pipelines
-- Planning rollback strategies
-- Troubleshooting deployment errors
+### Solutions Added
 
-## Related Skills
+| Solution | Approach |
+|----------|----------|
+| Phased Deployment | Deploy objects first, verify, then deploy Apex |
+| Force Recompilation | Add version comment to trigger recompile |
+| MDAPI for Objects | Use MDAPI deployment path for schema components |
+| Tooling API Compile | Query ApexClass to trigger metadata refresh |
 
-- [sf-debug](../sf-debug/) — Deployment error diagnosis
-- [sf-test](../sf-test/) — Test coverage requirements
-- [sf-schema](../sf-schema/) — Metadata dependencies
+## Files
+
+- [SKILL.md](SKILL.md) — Full merged skill
+
+## Original Sources
+
+- [`force-platform-skills/skills/sf-deploy/SKILL.md`](../../force-platform-skills/skills/sf-deploy/SKILL.md)
+- [`improved-skills/sf-deploy-IMPROVEMENTS.md`](../../improved-skills/sf-deploy-IMPROVEMENTS.md)
