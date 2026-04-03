@@ -244,7 +244,7 @@ Skills library for AI coding assistants.
 ## Quick Start
 
 ```bash
-./force-platform-skills/install.sh   # Install skills to all AI tool locations
+./install.sh                         # Install skills to all AI tool locations
 npm run lint && npm run prettier     # Lint and format
 npm run test:unit                    # Run Jest tests
 npm run prettier:verify              # Check formatting
@@ -252,7 +252,7 @@ npm run prettier:verify              # Check formatting
 
 ## Skills
 
-Use `/sf-find` to discover which skill applies, or load a specific skill directly. See `force-platform-skills/README.md` for the full catalog.
+Use `/sf-find` to discover which skill applies, or load a specific skill directly. See `README.md` for the full catalog.
 
 ## Structure
 
