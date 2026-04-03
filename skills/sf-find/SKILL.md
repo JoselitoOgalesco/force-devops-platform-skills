@@ -1,10 +1,13 @@
 ---
 name: sf-find
-description: Discover the right Salesforce skill for your task.
+description: |
+  Discover the right Salesforce skill for your task. Use when unsure which
+  skill applies, asking "what skill should I use", looking for help with
+  Salesforce development, or exploring available capabilities.
 metadata:
   author: AI generated for Force.com DevOps Platform Team
-  version: "1.0.0"
-  tags: salesforce, discovery, help
+  version: "1.1.0"
+  tags: salesforce, discovery, help, navigation
 ---
 
 # Skill Finder
@@ -31,6 +34,9 @@ Find the right Salesforce skill for your task.
 | **sf-agentforce** | Build Agentforce AI agents, topics, actions, PromptTemplates |
 | **sf-omnistudio** | OmniScripts, FlexCards, Integration Procedures, Data Mappers |
 | **sf-docs** | Find Salesforce documentation, Trailhead resources, CLI help |
+| **sf-code-review** | Code reviews, security checks, PMD analysis, pull request validation |
+| **sf-eval** | Evaluate code quality, benchmark against rubrics, skill assessment |
+| **sf-scratch-org** | Create/manage scratch orgs, troubleshoot org issues, feature enablement |
 
 ## Decision Guide
 
@@ -57,6 +63,9 @@ Find the right Salesforce skill for your task.
 14. **Working with OmniStudio?** → `sf-omnistudio`
 15. **Visualizing architecture?** → `sf-diagram`
 16. **Need Salesforce docs?** → `sf-docs`
+17. **Code review needed?** → `sf-code-review`
+18. **Evaluate code quality?** → `sf-eval`
+19. **Scratch org issues?** → `sf-scratch-org`
 
 ## By Task
 
@@ -86,6 +95,11 @@ Find the right Salesforce skill for your task.
 | Build Agentforce agent | sf-agentforce |
 | Create OmniScript | sf-omnistudio |
 | Find documentation | sf-docs |
+| Review pull request | sf-code-review |
+| Run code analyzer | sf-code-review |
+| Evaluate code quality | sf-eval |
+| Create scratch org | sf-scratch-org |
+| Fix scratch org errors | sf-scratch-org |
 
 ## By Error Message
 
@@ -106,4 +120,4 @@ All skills require:
 
 ## References
 
-See [references/governor-limits.md](../references/governor-limits.md) for Salesforce per-transaction limits.
+See [references/governor-limits.md](../../references/governor-limits.md) for Salesforce per-transaction limits.

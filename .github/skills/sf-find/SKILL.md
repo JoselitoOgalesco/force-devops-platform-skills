@@ -106,4 +106,4 @@ All skills require:
 
 ## References
 
-See [references/governor-limits.md](../references/governor-limits.md) for Salesforce per-transaction limits.
+See [references/governor-limits.md](../../../references/governor-limits.md) for Salesforce per-transaction limits.
