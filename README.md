@@ -91,6 +91,14 @@ cp -r skills/* .agents/skills/
 |-------|---------|
 | `sf-find` | Skill discovery and selection |
 
+## Agents
+
+| Agent | Purpose |
+|-------|--------|
+| `devops-researcher` | Git history investigation, metadata tracing, deployment issue diagnosis |
+| `release-dependency-engine` | Copado deployment dependencies, user story correlation, predictive dependency detection (requires US-XXXXX) |
+| `sf-reviewer` | Code review with security, bulkification, and best practices checks |
+
 ## References
 
 | File | Purpose |

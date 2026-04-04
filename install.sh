@@ -104,7 +104,7 @@ if [ "$UNINSTALL" = true ]; then
 
     for dir in "$COPILOT_AGENTS_DIR" "$CLAUDE_AGENTS_DIR" "$GENERIC_AGENTS_DIR"; do
         if [ -d "$dir" ]; then
-            for agent in sf-reviewer devops-researcher; do
+            for agent in sf-reviewer devops-researcher release-dependency-engine; do
                 if [ -f "$dir/$agent.agent.md" ]; then
                     rm -f "$dir/$agent.agent.md"
                     echo -e "  ${RED}✗${NC} Removed $dir/$agent.agent.md"
@@ -295,4 +295,4 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo -e "  1. Restart your AI coding assistant"
 echo -e "  2. Try: /sf-find to discover available skills"
 echo -e "  3. Or load directly: /sf-apex, /sf-lwc, etc."
-echo -e "  4. Use @devops-researcher or @sf-reviewer for specialized agents"
+echo -e "  4. Use @devops-researcher, @release-dependency-engine, or @sf-reviewer for specialized agents"
