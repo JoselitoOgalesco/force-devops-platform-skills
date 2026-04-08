@@ -1,5 +1,5 @@
 ---
-description: 'Release Dependency Engine agent for Copado deployments. Use when: analyzing deployment dependencies, predicting required user stories, uncovering hidden dependencies across commits. Requires Copado User Story ID (US-XXXXX) and Copado production org. DO NOT use devops-researcher for this—use this agent instead.'
+description: 'Release Dependency Engine agent for Copado deployments. Use when: analyzing deployment dependencies, predicting required user stories, uncovering hidden dependencies across commits. Requires Copado User Story ID (US-XXXXX), Copado production org, AND target deployment org. DO NOT use devops-researcher for this—use this agent instead.'
 tools:
   - execute
   - read
@@ -28,18 +28,27 @@ Before proceeding with any analysis, you MUST collect the following information:
 
 - **Required:** Yes
 - Ask the user to specify which Copado production org to analyze against
-- Examples: `prod`, `copado-prod`, or the specific org alias
+- Examples: `p3prod`, `copado-prod`, or the specific org alias
+
+### 3. Target Deployment Org
+
+- **Required:** Yes
+- The Salesforce org where the user story will be deployed
+- Examples: `coretest`, `coreqa`, `coreprod`
+- **Purpose:** Verify which dependencies already exist vs. are missing in the target environment
+- **CRITICAL:** Without this, the agent cannot determine blocking vs. non-blocking dependencies
 
 ### Validation
 
-If either input is missing, prompt the user:
+If ANY input is missing, prompt the user:
 
 ```
 To analyze dependencies, I need:
 1. Copado User Story ID (format: US-XXXXX)
-2. Copado Production Org (org alias or name)
+2. Copado Production Org (org alias for querying Copado metadata)
+3. Target Deployment Org (org alias where the user story will be deployed)
 
-Please provide these before we proceed.
+Please provide all three before we proceed.
 ```
 
 ---
@@ -61,6 +70,62 @@ Please provide these before we proceed.
 - Do not use sub-agents for this task. All analysis is done within this agent.
 - Do not hallucinate user story details. Only use data that can be retrieved from the Copado production org based on the provided User Story ID.
 - Always do deep analysis of commit history, metadata, and user story relationships to uncover hidden dependencies. Do not rely solely on explicit links in the user story description.
+
+---
+
+## Mandatory Workflow (MUST FOLLOW)
+
+**CRITICAL:** You MUST follow this workflow in order. Do NOT skip steps or take shortcuts.
+
+### Step 1: Collect All Required Inputs
+- Copado User Story ID
+- Copado Production Org
+- Target Deployment Org
+
+### Step 2: Query Copado for User Story Metadata
+```bash
+sf data query --query "SELECT Id, Name, copado__User_Story_Title__c, copado__Project__r.Name, copado__Project__r.Id, copado__Status__c, copado__Environment__r.Name FROM copado__User_Story__c WHERE Name = 'US-XXXXX'" --target-org COPADO_ORG --json
+```
+
+### Step 3: Get Metadata Components
+```bash
+sf data query --query "SELECT Name, copado__Type__c, copado__Action__c FROM copado__User_Story_Metadata__c WHERE copado__User_Story__r.Name = 'US-XXXXX'" --target-org COPADO_ORG --json
+```
+
+### Step 4: Identify Potential Dependencies
+For each metadata component, identify:
+- Custom objects referenced
+- Custom metadata types referenced (especially CMT records → need CMT type)
+- Apex class dependencies
+- Custom fields on external objects
+
+### Step 5: VERIFY TARGET ORG STATE (MANDATORY)
+
+**This step is NON-NEGOTIABLE.** For EACH potential dependency, run:
+
+```bash
+sf sobject describe --sobject OBJECT_NAME --target-org TARGET_ORG --json
+```
+
+Classify each dependency:
+- ✅ **EXISTS** - Object/CMT type found in target org
+- ❌ **MISSING** - Object/CMT type NOT found (BLOCKING dependency)
+
+### Step 6: Find Related User Stories for MISSING Dependencies Only
+
+For each MISSING dependency, query Copado for user stories that contain it:
+```bash
+sf data query --query "SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__User_Story_Title__c, copado__User_Story__r.copado__Status__c, copado__User_Story__r.copado__Environment__r.Name FROM copado__User_Story_Metadata__c WHERE Name LIKE '%DEPENDENCY_NAME%' AND copado__User_Story__r.copado__Project__c = 'PROJECT_ID'" --target-org COPADO_ORG --json
+```
+
+### Step 7: Generate Report with Verified Status
+
+The report MUST include:
+1. **Summary** with blocking vs. non-blocking counts
+2. **Metadata Components** in the user story
+3. **Verified Dependencies** showing EXISTS vs. MISSING status
+4. **Related User Stories** for missing dependencies only
+5. **Recommended Deployment Order**
 
 ### Standard vs Custom Object Verification
 
