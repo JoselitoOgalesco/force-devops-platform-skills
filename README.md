@@ -4,10 +4,19 @@ Comprehensive Salesforce development skills for AI coding assistants. Compatible
 
 ## Installation
 
+### Clone the Repository
+
+**Windows users:** Use Git Bash to clone this repository (not Command Prompt or PowerShell):
+
+```bash
+git clone https://github.com/JoselitoOgalesco/force-devops-platform-skills.git
+cd force-devops-platform-skills
+```
+
 ### Quick Install (Recommended)
 
 ```bash
-# Clone or download, then run:
+# Run the installer:
 ./install.sh
 
 # Or install to a specific project:

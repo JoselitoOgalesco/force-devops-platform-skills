@@ -1,10 +1,16 @@
 ---
 description: 'Release Dependency Engine agent for Copado deployments. Use when: analyzing deployment dependencies, predicting required user stories, uncovering hidden dependencies across commits. Requires Copado User Story ID (US-XXXXX), Copado production org, AND target deployment org. DO NOT use devops-researcher for this—use this agent instead.'
+version: '1.1'
 tools:
   - execute
   - read
   - search
 ---
+
+<!-- Changelog
+  v1.1 (2026-04-10) - Enforce Project ID filter in all dependency SOQL queries. Previously filtered by project name text which could pull in user stories from other projects.
+  v1.0 - Initial release
+-->
 
 # Release Dependency Engine Agent
 
@@ -59,10 +65,11 @@ Please provide all three before we proceed.
 
 **MANDATORY:** When analyzing dependencies for a user story, you MUST:
 
-1. First query the target user story to get its `copado__Project__r.Name`
-2. Only include dependent user stories that belong to the **same Copado project**
-3. Never cross-reference or suggest dependencies from different Copado projects
-4. Filter all dependency queries with `copado__Project__r.Name = '<target_project>'`
+1. First query the target user story to get its `copado__Project__c` (the Project record ID) and `copado__Project__r.Name`
+2. **Store the Project ID** and use `copado__User_Story__r.copado__Project__c = '<projectId>'` as a WHERE filter in ALL subsequent SOQL queries
+3. Only include dependent user stories that belong to the **same Copado project**
+4. Never cross-reference or suggest dependencies from different Copado projects
+5. Do NOT rely on metadata name text matching alone — always include the Project ID filter
 
 > User stories from different Copado projects are managed by different teams and have separate release cycles. Cross-project dependencies are NOT valid.
 
