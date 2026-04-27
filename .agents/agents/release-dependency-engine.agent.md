@@ -8,6 +8,7 @@ tools:
 ---
 
 <!-- Changelog
+  v1.2 (2026-04-25) - Added Return Contract + Deliverables Checklist. Forbid subagent file writes (parent agent owns persistence). Mitigates "subagent forgets to generate report" failure mode.
   v1.1 (2026-04-10) - Enforce Project ID filter in all dependency SOQL queries. Previously filtered by project name text which could pull in user stories from other projects.
   v1.0 - Initial release
 -->
@@ -77,6 +78,61 @@ Please provide all three before we proceed.
 - Do not use sub-agents for this task. All analysis is done within this agent.
 - Do not hallucinate user story details. Only use data that can be retrieved from the Copado production org based on the provided User Story ID.
 - Always do deep analysis of commit history, metadata, and user story relationships to uncover hidden dependencies. Do not rely solely on explicit links in the user story description.
+
+---
+
+## Return Contract (NON-NEGOTIABLE)
+
+> This section exists because subagents have repeatedly ended their run without producing the report. Treat every rule below as a hard requirement.
+
+### Rule 1: DO NOT write report files yourself
+
+- **Never** call `create_file`, `edit`, or any shell redirection (`>`, `tee`, `Out-File`) to persist the dependency report.
+- Subagent file writes are **not durable** in this environment — files reported as "created" do not appear on disk.
+- The **parent agent** is solely responsible for persisting the report. Your job ends at returning the markdown.
+
+### Rule 2: Return the full report inline as your final message
+
+Your final message MUST be the **complete report markdown**, top to bottom, using the [Standardized Report Template](#standardized-report-template) further below. No summaries, no "report saved to…" sentences, no truncation.
+
+### Rule 3: End every run with the Deliverables Checklist
+
+Append this block as the **last section** of your final message. Every box MUST be `[x]`. If any box would be `[ ]`, do not return yet — finish that step first.
+
+```markdown
+## DELIVERABLES CHECKLIST
+
+- [ ] All three required inputs collected (US ID, Copado prod org, target org)
+- [ ] User story queried; `copado__Project__c` ID captured
+- [ ] Metadata components listed (Step 3)
+- [ ] Each potential dependency verified against target org via `sf sobject describe` (Step 5)
+- [ ] Each dependency classified as ✅ EXISTS or ❌ MISSING
+- [ ] Related user stories queried for every MISSING dependency (Step 6), filtered by Project ID
+- [ ] Conflict warnings included (or "None detected" stated explicitly)
+- [ ] Recommended deployment order produced
+- [ ] Risk assessment table populated
+- [ ] Report rendered inline in this message using the Standardized Report Template
+- [ ] No file-write tools were invoked
+```
+
+### Rule 4: Forbidden closing phrases
+
+Do **not** end your message with any of:
+- "Report saved to …"
+- "I have created the file …"
+- "See attached report …"
+- "Full report available at …"
+
+These phrases are evidence that the deliverable was skipped. The report itself must be the message body.
+
+### Rule 5: If you must stop early
+
+If you cannot complete the analysis (e.g., org auth failure, missing input), return:
+1. A `## STATUS: INCOMPLETE` header
+2. The specific blocker
+3. The Deliverables Checklist with unmet items as `[ ]` and a one-line reason next to each
+
+Do not silently omit sections.
 
 ---
 
