@@ -1,6 +1,6 @@
 ---
 description: 'Release Dependency Engine agent for Copado deployments. Use when: analyzing deployment dependencies, predicting required user stories, uncovering hidden dependencies across commits. Requires Copado User Story ID (US-XXXXX), Copado production org, AND target deployment org. DO NOT use devops-researcher for this—use this agent instead.'
-version: '1.3'
+version: '1.4'
 tools:
   - execute
   - read
@@ -8,6 +8,12 @@ tools:
 ---
 
 <!-- Changelog
+  v1.4 (2026-04-27) - Accuracy hardening:
+    (a) Require Completed Promotion records via copado__Promoted_User_Story__c junction as the source of truth for "already deployed" claims. copado__Environment__c is current-state only and is no longer accepted as evidence.
+    (b) Added per-metadata-type parsing rules for FlexiPages: only <fieldItem>/<componentName> count as references; <leftValue>/<rightValue>/<expression> visibility formulas MUST NOT be parsed as field refs. Standard fields (no __c) are excluded.
+    (c) Added Deliverables Checklist rows enforcing Promotion ID citation and a grep-based FlexiPage cross-check.
+    (d) Renamed "Environment Pipeline Reference" → "Pipeline Stage Display Hints" with explicit ban on using it as deployment-state evidence.
+    (e) Corrected the "Known SOQL Issues" entry that wrongly said copado__Promotion__c had no link to user stories — it does, via copado__Promoted_User_Story__c.
   v1.3 (2026-04-27) - Switched dependency scoping from same-Project to same-Pipeline (copado__Deployment_Flow__c on the Project). Multiple projects can share one pipeline; only stories outside the pipeline are excluded.
   v1.2 (2026-04-25) - Added Return Contract + Deliverables Checklist. Forbid subagent file writes (parent agent owns persistence). Mitigates "subagent forgets to generate report" failure mode.
   v1.1 (2026-04-10) - Enforce Project ID filter in all dependency SOQL queries. Previously filtered by project name text which could pull in user stories from other projects.
@@ -117,6 +123,9 @@ Append this block as the **last section** of your final message. Every box MUST 
 - [ ] Conflict warnings included (or "None detected" stated explicitly)
 - [ ] Recommended deployment order produced
 - [ ] Risk assessment table populated
+- [ ] For every "already deployed" claim, a Promotion ID (P######) + Completed date is cited (Step 5b)
+- [ ] FlexiPage references were extracted via the grep command in the FlexiPages parser section, and the count of unique <fieldItem> + <componentName> matches the report
+- [ ] No standard field (API name not ending in __c) appears in any dependency table
 - [ ] Report rendered inline in this message using the Standardized Report Template
 - [ ] No file-write tools were invoked
 ```
@@ -182,6 +191,28 @@ Classify each dependency:
 - ✅ **EXISTS** - Object/CMT type found in target org
 - ❌ **MISSING** - Object/CMT type NOT found (BLOCKING dependency)
 
+### Step 5b: VERIFY ACTUAL PROMOTION HISTORY (MANDATORY for "already-deployed" claims)
+
+`copado__User_Story__c.copado__Environment__c` reflects the story's CURRENT environment only.
+It is NOT proof the story has been promoted to the TARGET org — the story may have moved
+forward and skipped the target, or the env field may be stale after a rollback.
+
+To claim "already in TARGET_ORG", you MUST find a **Completed** promotion record whose
+destination is the target environment. Use the `copado__Promoted_User_Story__c` junction:
+
+```bash
+sf data query --query "SELECT copado__Promotion__r.Name, copado__Promotion__r.copado__Status__c, copado__Promotion__r.copado__Destination_Environment__r.Name, copado__Promotion__r.LastModifiedDate, copado__User_Story__r.Name FROM copado__Promoted_User_Story__c WHERE copado__User_Story__r.Name IN ('US-A','US-B') AND copado__Promotion__r.copado__Status__c = 'Completed' ORDER BY copado__Promotion__r.LastModifiedDate DESC" --target-org COPADO_ORG --json
+```
+
+Classification rules:
+- ✅ **Promoted to target** — at least one `Completed` promotion to TARGET_ORG exists.
+  Cite the Promotion Name (e.g. `P156924`) and Completed date in the report.
+- ⚠️ **Past target** — most recent Completed promotion destination is downstream of
+  TARGET_ORG. Likely safe (metadata is in target unless rolled back) — flag for verification.
+- ❌ **Not promoted to target** — no Completed promotion to TARGET_ORG or downstream.
+
+**Never write "✓ In CoreTest" or "✓ Past CoreTest" without a Promotion ID + date as evidence.**
+
 ### Step 6: Find Related User Stories for MISSING Dependencies Only
 
 For each MISSING dependency, query Copado for user stories in the **same Pipeline** that contain it:
@@ -196,7 +227,7 @@ Results may include user stories from **different Projects** — that is expecte
 Render the report **as your final message** following the [Standardized Report Template](#standardized-report-template). Do not call any file-write mechanism (see Return Contract → Rule 1). The report MUST include:
 1. **Summary** with blocking vs. non-blocking counts
 2. **Metadata Components** in the user story
-3. **Verified Dependencies** showing EXISTS vs. MISSING status
+3. **Verified Dependencies** showing EXISTS vs. MISSING status (with Promotion ID + Completed date for every "already-deployed" claim — see Step 5b)
 4. **Related User Stories** for missing dependencies only
 5. **Recommended Deployment Order**
 6. **Risk Assessment**
@@ -358,13 +389,45 @@ sf data query --query "SELECT copado__User_Story__r.Name, copado__User_Story__r.
 ```
 
 ### ⚠️ Known SOQL Issues
-- `copado__Promotion__c` does NOT have `copado__User_Story__r` relationship - use junction object instead
+- `copado__Promotion__c` ↔ `copado__User_Story__c` is many-to-many via the junction `copado__Promoted_User_Story__c`. To get a story's promotion history, query the junction (see Step 5b), not `copado__Promotion__c` directly.
 - Always use IDs (not Names) in WHERE clauses for performance — e.g. `copado__Project__r.copado__Deployment_Flow__c = '<pipelineId>'`, not `copado__Deployment_Flow__r.Name = '...'`
 - Pipeline field on Project may be `copado__Deployment_Flow__c` (standard) or `copado__Pipeline__c` (renamed in some orgs). Verify via `sf sobject describe --sobject copado__Project__c` before bulk querying.
 
 ---
 
 ## Metadata Type-Specific Dependency Detection
+
+### FlexiPages (.flexipage-meta.xml)
+
+Parse ONLY these tags as metadata references:
+
+1. `<fieldItem>Record.<API_NAME></fieldItem>` → CustomField on the page's sobject.
+   - Strip the `Record.` prefix before reporting.
+   - If the API name does NOT end in `__c`, it is a STANDARD field — do NOT report.
+   - If the API name has the form `<RelObject>.<Field>` (e.g. `Account.Name`), this is a
+     standard relationship traversal — do NOT report as a custom field.
+2. `<componentName>...</componentName>` → LWC/Aura/standard component reference.
+   - Skip standard namespaces: `force:*`, `flexipage:*`, `forceChatter:*`, `runtime_*`,
+     `flowruntime:*`, `forceCommunity:*`, `wave:*`.
+   - Anything else (e.g. `lsc4ce:LSCGenericRelatedList`) is a managed-package or org
+     component and MUST be reported.
+3. `<actionName>` → QuickAction reference.
+4. `<recordType>`, `<entityObject>` → CustomObject / RecordType reference.
+
+DO NOT parse as field references:
+- `<leftValue>{!Record.X.Y}</leftValue>`, `<rightValue>...</rightValue>`,
+  `<expression>...</expression>` — these are **visibility-rule formulas**. Symbols inside
+  `{! }` are field paths used by the rule engine, not page data bindings. Treat them as
+  standard unless they end in `__c`. Example: `{!Record.Case.Status}` is the standard
+  Status field, NOT a custom `CaseStatus_CORE_LSC__c` field.
+- Inline string literals like `"Submitted"`, `"Draft"` — picklist VALUES, not metadata.
+
+Mandatory cross-check command (run BEFORE writing the dependency table):
+```bash
+grep -hE '<fieldItem>|<componentName>' force-app/main/default/flexipages/<NAME>.flexipage-meta.xml | sort -u
+```
+The unique output of this grep is the **complete** dependency surface for the FlexiPage.
+The custom-field count and component count in your report MUST match this output.
 
 ### Custom Fields
 Check for these dependency types:
@@ -514,18 +577,21 @@ Use the structure below as the shape of your final message. The fenced block is 
 
 ---
 
-## Environment Pipeline Reference
+## Pipeline Stage Display Hints
 
-Map org credentials to pipeline stages:
+Org-credential → human-readable stage label, **for display only**:
 
-| Org Credential Pattern | Pipeline Stage |
-|------------------------|----------------|
+| Org Credential Pattern | Display Stage |
+|------------------------|---------------|
 | `*-CoreDev*` | Development |
 | `*-CoreQA` | QA/Integration |
 | `*-CoreTest` | SIT/UAT |
 | `*-CoreProd*` | Production |
 
-Use this to determine if dependencies are "ahead" or "behind" the target user story.
+> ⚠️ This mapping MUST NOT be used to decide whether a dependency is deployed to a given
+> org. The story's `copado__Environment__c` is current-state only and can be stale or
+> have leapfrogged the target. Use **Completed Promotion records** (Step 5b) as the
+> sole source of truth for deployment state.
 
 ---
 
